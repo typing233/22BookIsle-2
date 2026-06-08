@@ -139,6 +139,16 @@ router.get('/:id/cover', async (req: Request, res: Response) => {
     return;
   }
 
+  if (req.user!.role !== 'admin') {
+    const perm = await db('library_permissions')
+      .where({ user_id: req.user!.userId, library_id: book.library_id })
+      .first();
+    if (!perm) {
+      res.status(403).json({ error: 'No access' });
+      return;
+    }
+  }
+
   const coverPath = path.resolve(config.coverDir, book.cover_path);
   if (!fs.existsSync(coverPath)) {
     res.status(404).json({ error: 'Cover file not found' });

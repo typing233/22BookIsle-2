@@ -1,7 +1,7 @@
 <template>
   <router-link :to="`/book/${book.id}`" class="book-card">
     <div class="cover">
-      <img v-if="book.cover_path" :src="`/api/books/${book.id}/cover`" :alt="book.title" />
+      <img v-if="book.cover_path" :src="coverUrl" :alt="book.title" />
       <div v-else class="cover-placeholder">
         <span class="format-label">{{ book.format.toUpperCase() }}</span>
       </div>
@@ -17,10 +17,15 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue';
+import { authUrl } from '../utils/authUrl';
+
+const props = defineProps<{
   book: any;
   showProgress?: boolean;
 }>();
+
+const coverUrl = computed(() => authUrl(`/api/books/${props.book.id}/cover`));
 </script>
 
 <style scoped>

@@ -12,14 +12,21 @@ declare global {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  let token: string | undefined;
+
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
+  if (header && header.startsWith('Bearer ')) {
+    token = header.slice(7);
+  } else if (req.query.token) {
+    token = req.query.token as string;
+  }
+
+  if (!token) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
   try {
-    const token = header.slice(7);
     req.user = verifyAccessToken(token);
     next();
   } catch {
@@ -79,7 +86,7 @@ export function requireLibraryPermission(requiredPerm: Permission) {
   };
 }
 
-export async function requireBookPermission(requiredPerm: Permission) {
+export function requireBookPermission(requiredPerm: Permission) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       res.status(401).json({ error: 'Authentication required' });

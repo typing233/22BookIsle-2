@@ -11,7 +11,9 @@
       <button class="btn-secondary btn-sm" @click="$emit('zoom-out')" title="缩小">A-</button>
       <button class="btn-secondary btn-sm" @click="$emit('zoom-in')" title="放大">A+</button>
       <button class="btn-secondary btn-sm" @click="$emit('toggle-toc')" title="目录">目录</button>
-      <button class="btn-secondary btn-sm" @click="$emit('add-bookmark')" title="书签">+ 书签</button>
+      <button class="btn-secondary btn-sm" @click="$emit('toggle-bookmarks')" title="书签列表">书签</button>
+      <button class="btn-secondary btn-sm" @click="$emit('add-bookmark')" title="快速添加书签">+ 签</button>
+      <button class="btn-secondary btn-sm" @click="$emit('add-note')" title="添加批注">+ 注</button>
     </div>
   </div>
 </template>
@@ -23,7 +25,7 @@ defineProps<{
   showToc: boolean;
 }>();
 
-defineEmits(['back', 'toggle-toc', 'add-bookmark', 'zoom-in', 'zoom-out']);
+defineEmits(['back', 'toggle-toc', 'toggle-bookmarks', 'add-bookmark', 'add-note', 'zoom-in', 'zoom-out']);
 </script>
 
 <style scoped>

@@ -3,7 +3,7 @@
     <div class="book-layout">
       <div class="cover-section">
         <div class="cover-large">
-          <img v-if="book.cover_path" :src="`/api/books/${book.id}/cover`" :alt="book.title" />
+          <img v-if="book.cover_path" :src="coverUrl" :alt="book.title" />
           <div v-else class="cover-placeholder">
             <span>{{ book.format.toUpperCase() }}</span>
           </div>
@@ -65,9 +65,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useReaderStore } from '../stores/reader';
+import { authUrl } from '../utils/authUrl';
 
 const route = useRoute();
 const router = useRouter();
@@ -77,6 +78,7 @@ const book = ref<any>(null);
 const bookmarks = ref<any[]>([]);
 
 const bookId = Number(route.params.id);
+const coverUrl = computed(() => authUrl(`/api/books/${bookId}/cover`));
 
 onMounted(async () => {
   await readerStore.fetchBook(bookId);

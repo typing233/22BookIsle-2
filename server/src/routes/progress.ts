@@ -11,24 +11,43 @@ const saveProgressSchema = z.object({
   percentage: z.number().min(0).max(1),
 });
 
+async function checkBookAccess(req: Request, res: Response, bookId: number): Promise<boolean> {
+  if (req.user!.role === 'admin') return true;
+  const db = getDb();
+  const book = await db('books').where('id', bookId).first();
+  if (!book) {
+    res.status(404).json({ error: 'Book not found' });
+    return false;
+  }
+  const perm = await db('library_permissions')
+    .where({ user_id: req.user!.userId, library_id: book.library_id })
+    .first();
+  if (!perm) {
+    res.status(403).json({ error: 'No access to this book' });
+    return false;
+  }
+  return true;
+}
+
 router.get('/:bookId', async (req: Request, res: Response) => {
+  const bookId = Number(req.params.bookId);
+  if (!(await checkBookAccess(req, res, bookId))) return;
+
   const db = getDb();
   const progress = await db('reading_progress')
-    .where({ user_id: req.user!.userId, book_id: Number(req.params.bookId) })
+    .where({ user_id: req.user!.userId, book_id: bookId })
     .first();
 
-  if (!progress) {
-    res.json(null);
-    return;
-  }
-  res.json(progress);
+  res.json(progress || null);
 });
 
 router.put('/:bookId', async (req: Request, res: Response) => {
   try {
+    const bookId = Number(req.params.bookId);
+    if (!(await checkBookAccess(req, res, bookId))) return;
+
     const data = saveProgressSchema.parse(req.body);
     const db = getDb();
-    const bookId = Number(req.params.bookId);
     const now = new Date().toISOString();
 
     await db('reading_progress')
@@ -58,13 +77,22 @@ router.put('/:bookId', async (req: Request, res: Response) => {
 
 router.get('/', async (req: Request, res: Response) => {
   const db = getDb();
-  const history = await db('reading_progress')
-    .where('user_id', req.user!.userId)
+
+  let query = db('reading_progress')
+    .where('reading_progress.user_id', req.user!.userId)
     .join('books', 'reading_progress.book_id', 'books.id')
     .select('books.*', 'reading_progress.position', 'reading_progress.percentage', 'reading_progress.last_read_at')
     .orderBy('reading_progress.last_read_at', 'desc')
     .limit(50);
 
+  if (req.user!.role !== 'admin') {
+    const permLibIds = await db('library_permissions')
+      .where('user_id', req.user!.userId)
+      .pluck('library_id');
+    query = query.whereIn('books.library_id', permLibIds);
+  }
+
+  const history = await query;
   res.json(history);
 });
 

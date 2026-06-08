@@ -46,11 +46,23 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
   const db = getDb();
-  const library = await db('libraries').where('id', Number(req.params.id)).first();
+  const libraryId = Number(req.params.id);
+  const library = await db('libraries').where('id', libraryId).first();
   if (!library) {
     res.status(404).json({ error: 'Library not found' });
     return;
   }
+
+  if (req.user!.role !== 'admin') {
+    const perm = await db('library_permissions')
+      .where({ user_id: req.user!.userId, library_id: libraryId })
+      .first();
+    if (!perm) {
+      res.status(403).json({ error: 'No access to this library' });
+      return;
+    }
+  }
+
   res.json({ ...library, paths: JSON.parse(library.paths) });
 });
 

@@ -40,6 +40,22 @@
           <BookCard v-for="book in recentBooks" :key="book.id" :book="book" />
         </div>
       </section>
+
+      <section v-if="localHistory.length && !readingHistory.length" class="section">
+        <h2 class="section-title">本地阅读记录</h2>
+        <div class="local-history-list">
+          <router-link
+            v-for="item in localHistory"
+            :key="item.bookId"
+            :to="`/read/${item.bookId}`"
+            class="local-history-item card"
+          >
+            <span class="lh-title">{{ item.title }}</span>
+            <span class="lh-meta">{{ item.format?.toUpperCase() }} · {{ Math.round((item.percentage || 0) * 100) }}%</span>
+            <span class="lh-time">{{ formatTime(item.timestamp) }}</span>
+          </router-link>
+        </div>
+      </section>
     </template>
 
     <ScanProgress />
@@ -60,6 +76,7 @@ const readingHistory = ref<any[]>([]);
 const recentBooks = ref<any[]>([]);
 const searchResults = ref<any[]>([]);
 const searchQuery = ref('');
+const localHistory = ref<any[]>([]);
 
 onMounted(async () => {
   await libraryStore.fetchLibraries();
@@ -69,6 +86,9 @@ onMounted(async () => {
   ]);
   readingHistory.value = historyRes.data;
   recentBooks.value = recentRes.data.data;
+
+  const stored = localStorage.getItem('bookisle_reading_history');
+  if (stored) localHistory.value = JSON.parse(stored).slice(0, 10);
 });
 
 watch(() => route.query.q, async (q) => {
@@ -80,6 +100,12 @@ watch(() => route.query.q, async (q) => {
     searchResults.value = [];
   }
 }, { immediate: true });
+
+function formatTime(ts: number): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 </script>
 
 <style scoped>
@@ -110,4 +136,13 @@ watch(() => route.query.q, async (q) => {
 }
 .library-card h3 { font-size: 16px; margin-bottom: 4px; color: var(--text-dark); }
 .lib-info { font-size: 13px; color: var(--text-light); }
+.local-history-list { display: flex; flex-direction: column; gap: 8px; }
+.local-history-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  transition: transform 0.2s;
+}
+.local-history-item:hover { transform: translateX(4px); }
+.lh-title { flex: 1; font-size: 14px; font-weight: 500; }
+.lh-meta { font-size: 12px; color: var(--text-light); }
+.lh-time { font-size: 12px; color: var(--text-light); }
 </style>

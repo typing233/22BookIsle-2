@@ -8,6 +8,24 @@ import { AuditAction } from '../../../shared/types/enums';
 const router = Router();
 router.use(requireAuth);
 
+async function checkLibraryAccess(req: Request, res: Response, libraryId: number, minPerm = 'read'): Promise<boolean> {
+  if (req.user!.role === 'admin') return true;
+  const db = getDb();
+  const perm = await db('library_permissions')
+    .where({ user_id: req.user!.userId, library_id: libraryId })
+    .first();
+  if (!perm) {
+    res.status(403).json({ error: 'No access to this library' });
+    return false;
+  }
+  const hierarchy: Record<string, number> = { read: 1, write: 2, manage: 3 };
+  if ((hierarchy[perm.permission] || 0) < (hierarchy[minPerm] || 0)) {
+    res.status(403).json({ error: 'Insufficient library permissions' });
+    return false;
+  }
+  return true;
+}
+
 router.post('/start', async (req: Request, res: Response) => {
   try {
     const { library_id } = req.body;
@@ -23,15 +41,7 @@ router.post('/start', async (req: Request, res: Response) => {
       return;
     }
 
-    if (req.user!.role !== 'admin') {
-      const perm = await db('library_permissions')
-        .where({ user_id: req.user!.userId, library_id: Number(library_id) })
-        .first();
-      if (!perm || perm.permission === 'read') {
-        res.status(403).json({ error: 'Write permission required to trigger scan' });
-        return;
-      }
-    }
+    if (!(await checkLibraryAccess(req, res, Number(library_id), 'write'))) return;
 
     const jobId = await startScan(Number(library_id));
     await writeAuditLog(req.user!.userId, AuditAction.ScanStart, 'library', Number(library_id), { jobId });
@@ -52,10 +62,22 @@ router.get('/status/:jobId', async (req: Request, res: Response) => {
     res.status(404).json({ error: 'Scan job not found' });
     return;
   }
+
+  if (!(await checkLibraryAccess(req, res, job.library_id))) return;
+
   res.json(job);
 });
 
 router.post('/cancel/:jobId', async (req: Request, res: Response) => {
+  const db = getDb();
+  const job = await db('scan_jobs').where('id', Number(req.params.jobId)).first();
+  if (!job) {
+    res.status(404).json({ error: 'Scan job not found' });
+    return;
+  }
+
+  if (!(await checkLibraryAccess(req, res, job.library_id, 'write'))) return;
+
   const cancelled = cancelScan(Number(req.params.jobId));
   if (!cancelled) {
     res.status(404).json({ error: 'No active scan with that ID' });
@@ -65,9 +87,12 @@ router.post('/cancel/:jobId', async (req: Request, res: Response) => {
 });
 
 router.get('/history/:libraryId', async (req: Request, res: Response) => {
+  const libraryId = Number(req.params.libraryId);
+  if (!(await checkLibraryAccess(req, res, libraryId))) return;
+
   const db = getDb();
   const jobs = await db('scan_jobs')
-    .where('library_id', Number(req.params.libraryId))
+    .where('library_id', libraryId)
     .orderBy('created_at', 'desc')
     .limit(20);
   res.json(jobs);
