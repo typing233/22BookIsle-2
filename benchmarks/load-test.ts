@@ -31,7 +31,14 @@ async function makeRequest(path: string): Promise<number> {
 
     const req = http.request(options, (res) => {
       res.resume();
-      res.on('end', () => resolve(Date.now() - start));
+      res.on('end', () => {
+        const status = res.statusCode || 0;
+        if (status >= 200 && status < 400) {
+          resolve(Date.now() - start);
+        } else {
+          reject(new Error(`HTTP ${status}`));
+        }
+      });
     });
     req.on('error', () => reject(new Error('request failed')));
     req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });

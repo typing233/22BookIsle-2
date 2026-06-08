@@ -28,7 +28,9 @@ export function createApp() {
   app.use(cors());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use(globalRateLimit);
+  if (!process.env.DISABLE_RATE_LIMIT) {
+    app.use(globalRateLimit);
+  }
 
   const registerRoutes = (prefix: string) => {
     app.use(`${prefix}/auth`, authRoutes);

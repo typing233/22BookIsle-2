@@ -152,7 +152,7 @@ router.get('/', async (req: Request, res: Response) => {
             .andOn('rp.user_id', '=', db.raw('?', [userId]));
         });
       }
-      query = query.orderByRaw('COALESCE(rp.last_read_at, "1970-01-01") DESC');
+      query = query.orderByRaw("COALESCE(rp.last_read_at, '1970-01-01') DESC");
     } else if (params.sort === 'relevance' && useFts) {
       query = query.orderByRaw('rank');
     } else if (params.sort === 'author') {

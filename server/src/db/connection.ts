@@ -55,6 +55,10 @@ export async function closeDb(): Promise<void> {
   }
 }
 
+export function setDb(instance: Knex): void {
+  db = instance;
+}
+
 export function createTestDb(): Knex {
   return knex({
     client: 'better-sqlite3',

@@ -166,11 +166,16 @@ router.post('/book/:bookId', async (req: Request, res: Response) => {
 });
 
 router.delete('/book/:bookId/:tagId', async (req: Request, res: Response) => {
+  const bookId = Number(req.params.bookId);
+  if (!(await checkBookAccess(req, bookId))) {
+    res.status(403).json({ error: 'No access to this book' });
+    return;
+  }
   const db = getDb();
   await db('book_tags')
     .where({
       user_id: req.user!.userId,
-      book_id: Number(req.params.bookId),
+      book_id: bookId,
       tag_id: Number(req.params.tagId),
     })
     .delete();
@@ -178,10 +183,15 @@ router.delete('/book/:bookId/:tagId', async (req: Request, res: Response) => {
 });
 
 router.get('/book/:bookId', async (req: Request, res: Response) => {
+  const bookId = Number(req.params.bookId);
+  if (!(await checkBookAccess(req, bookId))) {
+    res.status(403).json({ error: 'No access to this book' });
+    return;
+  }
   const db = getDb();
   const tags = await db('book_tags')
     .join('user_tags', 'book_tags.tag_id', 'user_tags.id')
-    .where({ 'book_tags.user_id': req.user!.userId, 'book_tags.book_id': Number(req.params.bookId) })
+    .where({ 'book_tags.user_id': req.user!.userId, 'book_tags.book_id': bookId })
     .select('user_tags.*');
   res.json(tags);
 });

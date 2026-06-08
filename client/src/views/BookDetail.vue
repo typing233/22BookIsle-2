@@ -15,6 +15,24 @@
       <div class="meta-section">
         <h1>{{ book.title || '未知标题' }}</h1>
         <p class="author">{{ book.author || '未知作者' }}</p>
+
+        <div class="rating-section">
+          <span class="meta-label">我的评分</span>
+          <RatingStars v-model="currentRating" :size="24" :show-value="true" />
+        </div>
+
+        <div class="tags-section">
+          <span class="meta-label">标签</span>
+          <TagEditor
+            :model-value="currentTags"
+            :all-tags="tagsStore.tags"
+            @add-tag="handleAddTag"
+            @remove-tag="handleRemoveTag"
+            @create-tag="handleCreateTag"
+            @update:model-value="currentTags = $event"
+          />
+        </div>
+
         <div class="meta-grid">
           <div class="meta-item">
             <span class="meta-label">格式</span>
@@ -65,27 +83,71 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useReaderStore } from '../stores/reader';
+import { useTagsStore, type Tag } from '../stores/tags';
 import { authUrl } from '../utils/authUrl';
+import RatingStars from '../components/RatingStars.vue';
+import TagEditor from '../components/TagEditor.vue';
 
 const route = useRoute();
 const router = useRouter();
 const readerStore = useReaderStore();
+const tagsStore = useTagsStore();
 
 const book = ref<any>(null);
 const bookmarks = ref<any[]>([]);
+const currentRating = ref(0);
+const currentTags = ref<Tag[]>([]);
 
 const bookId = Number(route.params.id);
 const coverUrl = computed(() => authUrl(`/api/books/${bookId}/cover`));
 
 onMounted(async () => {
-  await readerStore.fetchBook(bookId);
+  await Promise.all([
+    readerStore.fetchBook(bookId),
+    tagsStore.fetchTags(),
+  ]);
   book.value = readerStore.currentBook;
   await readerStore.fetchBookmarks(bookId);
   bookmarks.value = readerStore.bookmarks;
+
+  currentRating.value = book.value?.user_rating || 0;
+  currentTags.value = book.value?.user_tags || [];
+
+  if (!book.value?.user_rating) {
+    const rating = await tagsStore.fetchRating(bookId);
+    currentRating.value = rating;
+  }
+  if (!book.value?.user_tags?.length) {
+    const tags = await tagsStore.fetchBookTags(bookId);
+    currentTags.value = tags || [];
+  }
 });
+
+watch(currentRating, async (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return;
+  if (newVal > 0) {
+    await tagsStore.setRating(bookId, newVal);
+  } else {
+    await tagsStore.removeRating(bookId);
+  }
+});
+
+async function handleAddTag(tagId: number) {
+  await tagsStore.addTagToBook(bookId, tagId);
+}
+
+async function handleRemoveTag(tagId: number) {
+  await tagsStore.removeTagFromBook(bookId, tagId);
+}
+
+async function handleCreateTag(name: string) {
+  const tag = await tagsStore.createTag(name);
+  await tagsStore.addTagToBook(bookId, tag.id);
+  currentTags.value = [...currentTags.value, tag];
+}
 
 function openReader() {
   router.push(`/read/${bookId}`);
@@ -124,6 +186,10 @@ function formatSize(bytes: number): string {
 .meta-section { flex: 1; }
 .meta-section h1 { font-size: 24px; margin-bottom: 4px; }
 .author { color: var(--text-light); font-size: 16px; margin-bottom: 20px; }
+.rating-section { margin-bottom: 16px; }
+.rating-section .meta-label { display: block; font-size: 12px; color: var(--text-light); margin-bottom: 4px; }
+.tags-section { margin-bottom: 20px; }
+.tags-section > .meta-label { display: block; font-size: 12px; color: var(--text-light); margin-bottom: 4px; }
 .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .meta-item { font-size: 14px; }
 .meta-label { display: block; font-size: 12px; color: var(--text-light); margin-bottom: 2px; }

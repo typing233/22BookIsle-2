@@ -6,6 +6,12 @@
         <p class="lib-meta" v-if="library">{{ libraryStore.totalBooks }} 本书籍</p>
       </div>
       <div class="actions">
+        <button v-if="!selectMode" class="btn-secondary btn-sm" @click="selectMode = true">批量编辑</button>
+        <template v-if="selectMode">
+          <span class="select-info">已选 {{ selectedBooks.size }}</span>
+          <button class="btn-primary btn-sm" :disabled="selectedBooks.size === 0" @click="showBatchModal = true">编辑</button>
+          <button class="btn-secondary btn-sm" @click="cancelSelect">取消</button>
+        </template>
         <select v-model="sortBy" class="sort-select">
           <option value="title">按标题</option>
           <option value="author">按作者</option>
@@ -23,7 +29,14 @@
 
     <div v-if="libraryStore.loading" class="loading">加载中...</div>
     <div v-else-if="libraryStore.books.length" class="grid grid-books">
-      <BookCard v-for="book in libraryStore.books" :key="book.id" :book="book" />
+      <BookCard
+        v-for="book in libraryStore.books"
+        :key="book.id"
+        :book="book"
+        :selectable="selectMode"
+        :selected="selectedBooks.has(book.id)"
+        @toggle-select="toggleBook"
+      />
     </div>
     <p v-else class="empty">书库为空，请执行扫描</p>
 
@@ -42,6 +55,14 @@
     </div>
 
     <ScanProgress />
+
+    <BatchEditModal
+      v-if="showBatchModal"
+      :book-ids="[...selectedBooks]"
+      :all-tags="tagsStore.tags"
+      @close="showBatchModal = false"
+      @applied="onBatchApplied"
+    />
   </div>
 </template>
 
@@ -49,18 +70,27 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLibraryStore } from '../stores/library';
+import { useTagsStore } from '../stores/tags';
 import BookCard from '../components/BookCard.vue';
 import ScanProgress from '../components/ScanProgress.vue';
+import BatchEditModal from '../components/BatchEditModal.vue';
 
 const route = useRoute();
 const libraryStore = useLibraryStore();
+const tagsStore = useTagsStore();
 
 const sortBy = ref('title');
 const filterFormat = ref('');
+const selectMode = ref(false);
+const selectedBooks = ref<Set<number>>(new Set());
+const showBatchModal = ref(false);
 const library = computed(() => libraryStore.currentLibrary);
 const libraryId = computed(() => Number(route.params.id));
 
-onMounted(() => loadData());
+onMounted(() => {
+  tagsStore.fetchTags();
+  loadData();
+});
 
 watch([sortBy, filterFormat], () => loadData());
 
@@ -72,6 +102,25 @@ async function loadData() {
     format: filterFormat.value || undefined,
     page: 1,
   });
+}
+
+function toggleBook(bookId: number) {
+  if (selectedBooks.value.has(bookId)) {
+    selectedBooks.value.delete(bookId);
+  } else {
+    selectedBooks.value.add(bookId);
+  }
+  selectedBooks.value = new Set(selectedBooks.value);
+}
+
+function cancelSelect() {
+  selectMode.value = false;
+  selectedBooks.value = new Set();
+}
+
+async function onBatchApplied() {
+  cancelSelect();
+  await loadData();
 }
 
 async function triggerScan() {
@@ -101,8 +150,9 @@ function changePage(delta: number) {
   margin-bottom: 24px;
 }
 .lib-meta { font-size: 14px; color: var(--text-light); }
-.actions { display: flex; gap: 8px; align-items: center; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .sort-select { width: auto; padding: 6px 10px; font-size: 13px; }
+.select-info { font-size: 13px; color: var(--text-light); }
 .pagination {
   display: flex;
   align-items: center;
