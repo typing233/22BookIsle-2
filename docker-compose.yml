@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  bookisle:
+    build: .
+    container_name: bookisle
+    ports:
+      - "3000:3000"
+    volumes:
+      - bookisle-data:/app/data
+      - /mnt/nas/books:/books:ro
+      - /home/user/ebooks:/ebooks:ro
+    environment:
+      - JWT_SECRET=change-this-to-a-long-random-string
+      - REFRESH_SECRET=change-this-to-another-secret
+      - DATA_DIR=/app/data
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  bookisle-data:
