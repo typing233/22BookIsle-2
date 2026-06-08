@@ -1,10 +1,11 @@
-import { UserRole, BookFormat, Permission, ScanJobStatus, BookmarkType } from './enums';
+import { UserRole, BookFormat, Permission, ScanJobStatus, BookmarkType, ApiScope } from './enums';
 
 export interface User {
   id: number;
   username: string;
   role: UserRole;
   display_name: string | null;
+  preferences: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,7 +50,11 @@ export interface ReadingProgress {
   book_id: number;
   position: string;
   percentage: number;
+  version: number;
+  finished: boolean;
+  device_id: string | null;
   last_read_at: string;
+  updated_at: string | null;
 }
 
 export interface Bookmark {
@@ -98,4 +103,82 @@ export interface AuditLogEntry {
   details: string | null;
   ip_address: string | null;
   created_at: string;
+}
+
+export interface UserRating {
+  id: number;
+  user_id: number;
+  book_id: number;
+  rating: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserTag {
+  id: number;
+  user_id: number;
+  name: string;
+  color: string | null;
+  created_at: string;
+}
+
+export interface BookTag {
+  id: number;
+  user_id: number;
+  book_id: number;
+  tag_id: number;
+  created_at: string;
+}
+
+export interface ProgressHistory {
+  id: number;
+  user_id: number;
+  book_id: number;
+  position: string;
+  percentage: number;
+  version: number;
+  device_id: string | null;
+  created_at: string;
+}
+
+export interface MetadataHistory {
+  id: number;
+  book_id: number;
+  user_id: number;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  batch_id: string | null;
+  created_at: string;
+}
+
+export interface MetadataTemplate {
+  id: number;
+  user_id: number;
+  name: string;
+  pattern: string;
+  field_mapping: string;
+  example: string | null;
+  created_at: string;
+}
+
+export interface ApiToken {
+  id: number;
+  user_id: number;
+  name: string;
+  token_hash: string;
+  scopes: ApiScope[];
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface ReadingStat {
+  id: number;
+  user_id: number;
+  book_id: number;
+  date: string;
+  duration_seconds: number;
+  pages_read: number;
+  sessions: number;
 }

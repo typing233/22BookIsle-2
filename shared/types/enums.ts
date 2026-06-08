@@ -41,4 +41,43 @@ export enum AuditAction {
   PermissionChange = 'permission_change',
   ScanStart = 'scan_start',
   ScanComplete = 'scan_complete',
+  ProgressSync = 'progress_sync',
+  MetadataEdit = 'metadata_edit',
+  MetadataRollback = 'metadata_rollback',
+  TokenCreate = 'token_create',
+  TokenRevoke = 'token_revoke',
+}
+
+export enum ApiScope {
+  BooksRead = 'books:read',
+  BooksWrite = 'books:write',
+  ProgressRead = 'progress:read',
+  ProgressWrite = 'progress:write',
+  BookmarksRead = 'bookmarks:read',
+  BookmarksWrite = 'bookmarks:write',
+  TagsRead = 'tags:read',
+  TagsWrite = 'tags:write',
+  RatingsRead = 'ratings:read',
+  RatingsWrite = 'ratings:write',
+  MetadataRead = 'metadata:read',
+  MetadataWrite = 'metadata:write',
+  StatsRead = 'stats:read',
+  SyncRead = 'sync:read',
+  SyncWrite = 'sync:write',
+}
+
+export enum ReadStatus {
+  Unread = 'unread',
+  Reading = 'reading',
+  Finished = 'finished',
+}
+
+export enum ComicViewMode {
+  Single = 'single',
+  Double = 'double',
+}
+
+export enum ReadingDirection {
+  LTR = 'ltr',
+  RTL = 'rtl',
 }

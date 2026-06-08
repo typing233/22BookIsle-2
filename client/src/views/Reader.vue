@@ -1,5 +1,5 @@
 <template>
-  <div class="reader-page" v-if="book">
+  <div class="reader-page" v-if="book" @contextmenu.prevent="handleContextMenu">
     <ReaderToolbar
       :book="book"
       :percentage="percentage"
@@ -45,6 +45,7 @@
           :initial-position="savedPosition"
           :zoom="zoomLevel"
           @position-change="handlePositionChange"
+          @contextmenu="handleContextMenu"
           ref="comicRef"
         />
       </div>
@@ -58,7 +59,19 @@
       />
     </div>
 
-    <!-- Note/Annotation Modal -->
+    <ReaderContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      @add-bookmark="handleAddBookmark"
+      @add-note="showNoteModal = true"
+      @toggle-toc="showToc = !showToc"
+      @toggle-bookmarks="showBookmarks = !showBookmarks"
+      @fullscreen="toggleFullscreen"
+      @settings="showSettingsPanel = !showSettingsPanel"
+      @close="contextMenu.visible = false"
+    />
+
     <div v-if="showNoteModal" class="modal-overlay" @click.self="showNoteModal = false">
       <div class="modal card">
         <h3>添加批注</h3>
@@ -102,12 +115,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useReaderStore } from '../stores/reader';
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
 import ReaderToolbar from '../components/ReaderToolbar.vue';
 import TOCSidebar from '../components/TOCSidebar.vue';
 import BookmarkPanel from '../components/BookmarkPanel.vue';
+import ReaderContextMenu from '../components/ReaderContextMenu.vue';
 import EpubReader from '../readers/EpubReader.vue';
 import PdfReader from '../readers/PdfReader.vue';
 import ComicReader from '../readers/ComicReader.vue';
@@ -122,6 +137,7 @@ const toc = ref<any[]>([]);
 const showToc = ref(false);
 const showBookmarks = ref(false);
 const showNoteModal = ref(false);
+const showSettingsPanel = ref(false);
 const zoomLevel = ref(100);
 const percentage = ref(0);
 const savedPosition = ref('');
@@ -137,7 +153,24 @@ const fileUrl = computed(() => readerStore.getFileUrl(bookId));
 const colors = ['#ffd54f', '#aed581', '#4fc3f7', '#ce93d8', '#ef9a9a'];
 const noteForm = ref({ label: '', note: '', color: '#ffd54f', type: 'note' as string });
 
+const contextMenu = reactive({ visible: false, x: 0, y: 0 });
+
 let saveTimer: any = null;
+
+useKeyboardShortcuts({
+  toggleToc: () => { showToc.value = !showToc.value; },
+  toggleBookmarks: () => { showBookmarks.value = !showBookmarks.value; },
+  addBookmark: () => handleAddBookmark(),
+  fullscreen: () => toggleFullscreen(),
+  zoomIn: () => { zoomLevel.value += 10; },
+  zoomOut: () => { zoomLevel.value -= 10; },
+  closePanels: () => {
+    showToc.value = false;
+    showBookmarks.value = false;
+    showNoteModal.value = false;
+    contextMenu.visible = false;
+  },
+});
 
 onMounted(async () => {
   await readerStore.fetchBook(bookId);
@@ -145,7 +178,6 @@ onMounted(async () => {
   savedPosition.value = readerStore.position;
   percentage.value = readerStore.percentage;
   await readerStore.fetchBookmarks(bookId);
-
   saveToLocalHistory();
 });
 
@@ -153,6 +185,20 @@ onBeforeUnmount(() => {
   if (saveTimer) clearTimeout(saveTimer);
   saveCurrentPosition();
 });
+
+function handleContextMenu(e: MouseEvent) {
+  contextMenu.x = e.clientX;
+  contextMenu.y = e.clientY;
+  contextMenu.visible = true;
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
 
 function handlePositionChange(pos: { position: string; percentage: number }) {
   percentage.value = pos.percentage;
@@ -199,6 +245,7 @@ async function handleAddBookmark() {
     type: 'bookmark',
     label: `书签 - ${Math.round(percentage.value * 100)}%`,
   });
+  contextMenu.visible = false;
 }
 
 async function handleSaveNote() {

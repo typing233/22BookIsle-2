@@ -39,6 +39,17 @@ const routes = [
     name: 'settings',
     component: () => import('../views/Settings.vue'),
   },
+  {
+    path: '/stats',
+    name: 'statistics',
+    component: () => import('../views/Statistics.vue'),
+  },
+  {
+    path: '/metadata',
+    name: 'metadata',
+    component: () => import('../views/MetadataEditor.vue'),
+    meta: { adminOnly: true },
+  },
 ];
 
 const router = createRouter({

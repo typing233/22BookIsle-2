@@ -18,7 +18,7 @@ RUN npm run build
 
 FROM node:20-alpine
 
-RUN apk add --no-cache vips-dev
+RUN apk add --no-cache vips-dev curl
 
 WORKDIR /app
 
@@ -39,5 +39,8 @@ ENV PORT=3000
 EXPOSE 3000
 
 RUN mkdir -p /app/data
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "server/dist/index.js"]

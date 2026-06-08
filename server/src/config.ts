@@ -18,4 +18,7 @@ export const config = {
   maxConcurrentScans: 2,
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
+  rateLimitWindow: 60 * 1000,
+  rateLimitMaxDefault: 100,
+  rateLimitMaxAuthenticated: 300,
 };
