@@ -72,12 +72,13 @@ onMounted(async () => {
     const entries = await reader.getEntries();
 
     const imageEntries = entries
-      .filter((e: any) => /\.(jpe?g|png|gif|webp)$/i.test(e.filename))
+      .filter((e: any) => /\.(jpe?g|png|gif|webp)$/i.test(e.filename) && !e.directory)
       .sort((a: any, b: any) => a.filename.localeCompare(b.filename));
 
     for (const entry of imageEntries) {
-      const blob = await entry.getData!(new BlobWriter());
-      images.value.push(URL.createObjectURL(blob));
+      const writer = new BlobWriter();
+      const data = await (entry as any).getData(writer);
+      images.value.push(URL.createObjectURL(data));
     }
 
     await reader.close();

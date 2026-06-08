@@ -14,6 +14,7 @@ const searchSchema = z.object({
   rating_min: z.coerce.number().min(0).max(5).optional(),
   rating_max: z.coerce.number().min(0).max(5).optional(),
   tags: z.string().optional(),
+  tag_names: z.string().optional(),
   read_status: z.enum(['unread', 'reading', 'finished']).optional(),
   sort: z.enum(['relevance', 'title', 'author', 'rating', 'last_read']).optional(),
   page: z.coerce.number().optional(),
@@ -59,17 +60,19 @@ router.get('/', async (req: Request, res: Response) => {
       query = query.whereIn('books.library_id', permLibIds);
     }
 
+    let hasRatingJoin = false;
     if (params.rating_min !== undefined || params.rating_max !== undefined) {
-      query = query.leftJoin('user_ratings', function () {
-        this.on('books.id', '=', 'user_ratings.book_id')
-          .andOn('user_ratings.user_id', '=', db.raw('?', [userId]));
+      hasRatingJoin = true;
+      query = query.leftJoin('user_ratings as ur', function () {
+        this.on('books.id', '=', 'ur.book_id')
+          .andOn('ur.user_id', '=', db.raw('?', [userId]));
       });
 
       if (params.rating_min !== undefined) {
-        query = query.where('user_ratings.rating', '>=', params.rating_min);
+        query = query.where('ur.rating', '>=', params.rating_min);
       }
       if (params.rating_max !== undefined) {
-        query = query.where('user_ratings.rating', '<=', params.rating_max);
+        query = query.where('ur.rating', '<=', params.rating_max);
       }
     }
 
@@ -87,7 +90,31 @@ router.get('/', async (req: Request, res: Response) => {
       }
     }
 
+    if (params.tag_names) {
+      const tagNames = params.tag_names.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (tagNames.length > 0) {
+        const userTags = await db('user_tags')
+          .where('user_id', userId)
+          .whereIn('name', tagNames)
+          .pluck('id');
+        if (userTags.length > 0) {
+          for (let i = 0; i < userTags.length; i++) {
+            const alias = `btn${i}`;
+            query = query.join(`book_tags as ${alias}`, function () {
+              this.on(`${alias}.book_id`, '=', 'books.id')
+                .andOn(`${alias}.user_id`, '=', db.raw('?', [userId]))
+                .andOn(`${alias}.tag_id`, '=', db.raw('?', [userTags[i]]));
+            });
+          }
+        } else {
+          query = query.whereRaw('1 = 0');
+        }
+      }
+    }
+
+    let hasProgressJoin = false;
     if (params.read_status) {
+      hasProgressJoin = true;
       query = query.leftJoin('reading_progress as rp', function () {
         this.on('books.id', '=', 'rp.book_id')
           .andOn('rp.user_id', '=', db.raw('?', [userId]));
@@ -111,21 +138,21 @@ router.get('/', async (req: Request, res: Response) => {
     const total = (countResult as any)?.total || 0;
 
     if (params.sort === 'rating') {
-      if (!params.rating_min && !params.rating_max) {
-        query = query.leftJoin('user_ratings as ur_sort', function () {
-          this.on('books.id', '=', 'ur_sort.book_id')
-            .andOn('ur_sort.user_id', '=', db.raw('?', [userId]));
+      if (!hasRatingJoin) {
+        query = query.leftJoin('user_ratings as ur', function () {
+          this.on('books.id', '=', 'ur.book_id')
+            .andOn('ur.user_id', '=', db.raw('?', [userId]));
         });
       }
-      query = query.orderBy('user_ratings.rating', 'desc');
+      query = query.orderByRaw('COALESCE(ur.rating, 0) DESC');
     } else if (params.sort === 'last_read') {
-      if (params.read_status === undefined) {
-        query = query.leftJoin('reading_progress as rp_sort', function () {
-          this.on('books.id', '=', 'rp_sort.book_id')
-            .andOn('rp_sort.user_id', '=', db.raw('?', [userId]));
+      if (!hasProgressJoin) {
+        query = query.leftJoin('reading_progress as rp', function () {
+          this.on('books.id', '=', 'rp.book_id')
+            .andOn('rp.user_id', '=', db.raw('?', [userId]));
         });
       }
-      query = query.orderByRaw('COALESCE(rp.last_read_at, rp_sort.last_read_at, "1970-01-01") DESC');
+      query = query.orderByRaw('COALESCE(rp.last_read_at, "1970-01-01") DESC');
     } else if (params.sort === 'relevance' && useFts) {
       query = query.orderByRaw('rank');
     } else if (params.sort === 'author') {

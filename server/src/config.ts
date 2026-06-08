@@ -1,9 +1,13 @@
 import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+const configRoot = path.resolve(__dirname, '..', '..').includes('dist')
+  ? path.resolve(__dirname, '..', '..', '..', '..')
+  : path.resolve(__dirname, '..', '..');
 
-const dataDir = process.env.DATA_DIR || path.resolve(__dirname, '../../data');
+dotenv.config({ path: path.resolve(configRoot, '.env') });
+
+const dataDir = process.env.DATA_DIR || path.resolve(configRoot, 'data');
 
 export const config = {
   port: Number(process.env.PORT) || 3000,

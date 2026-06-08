@@ -75,14 +75,31 @@ router.put('/:bookId', idempotencyCheck(), async (req: Request, res: Response) =
     const clientVersion = data.version || (existing ? existing.version + 1 : 1);
 
     if (existing && clientVersion < existing.version) {
-      res.json({
-        accepted: false,
-        conflict: true,
-        server_version: existing.version,
-        server_position: existing.position,
-        server_percentage: existing.percentage,
-      });
-      return;
+      const clientPercentage = data.percentage;
+      const serverPercentage = existing.percentage;
+      const clientTime = new Date(now).getTime();
+      const serverTime = new Date(existing.last_read_at).getTime();
+
+      let winner: 'client' | 'server';
+      if (clientPercentage > serverPercentage) {
+        winner = 'client';
+      } else if (serverPercentage > clientPercentage) {
+        winner = 'server';
+      } else {
+        winner = clientTime >= serverTime ? 'client' : 'server';
+      }
+
+      if (winner === 'server') {
+        res.json({
+          accepted: false,
+          conflict: true,
+          resolved: 'server_wins',
+          server_version: existing.version,
+          server_position: existing.position,
+          server_percentage: existing.percentage,
+        });
+        return;
+      }
     }
 
     await db('reading_progress')
@@ -158,22 +175,58 @@ router.post('/batch', idempotencyCheck(), async (req: Request, res: Response) =>
     const db = getDb();
     const results: any[] = [];
 
+    const bookIds = [...new Set(items.map(i => i.book_id))];
+    let accessibleBookIds: Set<number>;
+
+    if (req.user!.role === 'admin') {
+      accessibleBookIds = new Set(bookIds);
+    } else {
+      const books = await db('books')
+        .whereIn('id', bookIds)
+        .join('library_permissions', function () {
+          this.on('books.library_id', 'library_permissions.library_id')
+            .andOn('library_permissions.user_id', db.raw('?', [req.user!.userId]));
+        })
+        .pluck('books.id');
+      accessibleBookIds = new Set(books);
+    }
+
     await db.transaction(async (trx) => {
       for (const item of items) {
+        if (!accessibleBookIds.has(item.book_id)) {
+          results.push({ book_id: item.book_id, accepted: false, error: 'No access to this book' });
+          continue;
+        }
+
         const existing = await trx('reading_progress')
           .where({ user_id: req.user!.userId, book_id: item.book_id })
           .first();
 
         if (existing && item.version < existing.version) {
-          results.push({
-            book_id: item.book_id,
-            accepted: false,
-            conflict: true,
-            server_version: existing.version,
-            server_position: existing.position,
-            server_percentage: existing.percentage,
-          });
-          continue;
+          const clientTime = new Date(item.last_read_at || new Date().toISOString()).getTime();
+          const serverTime = new Date(existing.last_read_at).getTime();
+
+          let winner: 'client' | 'server';
+          if (item.percentage > existing.percentage) {
+            winner = 'client';
+          } else if (existing.percentage > item.percentage) {
+            winner = 'server';
+          } else {
+            winner = clientTime >= serverTime ? 'client' : 'server';
+          }
+
+          if (winner === 'server') {
+            results.push({
+              book_id: item.book_id,
+              accepted: false,
+              conflict: true,
+              resolved: 'server_wins',
+              server_version: existing.version,
+              server_position: existing.position,
+              server_percentage: existing.percentage,
+            });
+            continue;
+          }
         }
 
         const now = item.last_read_at || new Date().toISOString();
@@ -231,7 +284,7 @@ router.get('/since/:timestamp', async (req: Request, res: Response) => {
 
   const changes = await db('reading_progress')
     .where('user_id', req.user!.userId)
-    .where('updated_at', '>', since)
+    .whereRaw('COALESCE(updated_at, last_read_at) > ?', [since])
     .select('*');
 
   res.json({ changes, server_time: new Date().toISOString() });

@@ -1,5 +1,5 @@
 import argon2 from 'argon2';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { config } from '../config';
 import { getDb } from '../db/connection';
 import { UserRole } from '../../../shared/types/enums';
@@ -19,11 +19,11 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
 }
 
 export function generateAccessToken(payload: TokenPayload): string {
-  return jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiry });
+  return jwt.sign(payload as object, config.jwtSecret, { expiresIn: config.jwtExpiry } as SignOptions);
 }
 
 export function generateRefreshToken(payload: TokenPayload): string {
-  return jwt.sign(payload, config.refreshSecret, { expiresIn: config.refreshExpiry });
+  return jwt.sign(payload as object, config.refreshSecret, { expiresIn: config.refreshExpiry } as SignOptions);
 }
 
 export function verifyAccessToken(token: string): TokenPayload {

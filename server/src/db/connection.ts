@@ -7,6 +7,10 @@ import { logger } from '../utils/logger';
 
 let db: Knex;
 
+const serverRoot = path.resolve(__dirname, '..', '..').includes('dist')
+  ? path.resolve(__dirname, '..', '..', '..', '..')
+  : path.resolve(__dirname, '..', '..');
+
 export function getDb(): Knex {
   if (!db) {
     fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
@@ -26,10 +30,10 @@ export function getDb(): Knex {
         },
       },
       migrations: {
-        directory: path.resolve(__dirname, '../../migrations'),
+        directory: path.resolve(serverRoot, 'migrations'),
       },
       seeds: {
-        directory: path.resolve(__dirname, '../../seeds'),
+        directory: path.resolve(serverRoot, 'seeds'),
       },
     });
 
@@ -64,10 +68,10 @@ export function createTestDb(): Knex {
       },
     },
     migrations: {
-      directory: path.resolve(__dirname, '../../migrations'),
+      directory: path.resolve(serverRoot, 'migrations'),
     },
     seeds: {
-      directory: path.resolve(__dirname, '../../seeds'),
+      directory: path.resolve(serverRoot, 'seeds'),
     },
   });
 }

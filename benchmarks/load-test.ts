@@ -111,6 +111,12 @@ async function main() {
 
   const failedChecks: string[] = [];
   for (const r of results) {
+    if (r.errorCount > 0 && r.errorCount / r.totalRequests > 0.1) {
+      failedChecks.push(`${r.endpoint} error rate ${((r.errorCount / r.totalRequests) * 100).toFixed(1)}% > 10%`);
+    }
+    if (r.totalRequests === 0) {
+      failedChecks.push(`${r.endpoint} no requests completed`);
+    }
     if (r.endpoint.includes('health') && r.p95Ms > 50) failedChecks.push(`${r.endpoint} p95 > 50ms`);
     if (r.endpoint.includes('progress') && r.p95Ms > 100) failedChecks.push(`${r.endpoint} p95 > 100ms`);
     if (r.endpoint.includes('search') && r.p95Ms > 200) failedChecks.push(`${r.endpoint} p95 > 200ms`);
@@ -125,4 +131,7 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error('Benchmark failed:', err);
+  process.exit(1);
+});

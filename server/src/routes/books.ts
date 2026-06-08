@@ -47,8 +47,31 @@ router.get('/', async (req: Request, res: Response) => {
     .limit(limitNum)
     .offset(offset);
 
+  const bookIds = books.map((b: any) => b.id);
+  const ratings = await db('user_ratings')
+    .where('user_id', req.user!.userId)
+    .whereIn('book_id', bookIds);
+  const ratingsMap = new Map(ratings.map((r: any) => [r.book_id, r.rating]));
+
+  const bookTags = await db('book_tags')
+    .where('book_tags.user_id', req.user!.userId)
+    .whereIn('book_tags.book_id', bookIds)
+    .join('user_tags', 'book_tags.tag_id', 'user_tags.id')
+    .select('book_tags.book_id', 'user_tags.id as tag_id', 'user_tags.name', 'user_tags.color');
+  const tagsMap = new Map<number, any[]>();
+  for (const bt of bookTags) {
+    if (!tagsMap.has(bt.book_id)) tagsMap.set(bt.book_id, []);
+    tagsMap.get(bt.book_id)!.push({ id: bt.tag_id, name: bt.name, color: bt.color });
+  }
+
+  const enrichedBooks = books.map((b: any) => ({
+    ...b,
+    user_rating: ratingsMap.get(b.id) || null,
+    user_tags: tagsMap.get(b.id) || [],
+  }));
+
   res.json({
-    data: books,
+    data: enrichedBooks,
     total,
     page: pageNum,
     limit: limitNum,
@@ -78,7 +101,21 @@ router.get('/:id', async (req: Request, res: Response) => {
     .where({ user_id: req.user!.userId, book_id: book.id })
     .first();
 
-  res.json({ ...book, progress: progress || null });
+  const rating = await db('user_ratings')
+    .where({ user_id: req.user!.userId, book_id: book.id })
+    .first();
+
+  const tags = await db('book_tags')
+    .where({ 'book_tags.user_id': req.user!.userId, 'book_tags.book_id': book.id })
+    .join('user_tags', 'book_tags.tag_id', 'user_tags.id')
+    .select('user_tags.id', 'user_tags.name', 'user_tags.color');
+
+  res.json({
+    ...book,
+    progress: progress || null,
+    user_rating: rating ? rating.rating : null,
+    user_tags: tags,
+  });
 });
 
 router.get('/:id/file', async (req: Request, res: Response) => {

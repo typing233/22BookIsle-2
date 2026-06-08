@@ -22,6 +22,31 @@ const batchTagSchema = z.object({
   remove_tag_ids: z.array(z.number().int().positive()).optional(),
 });
 
+async function checkBookAccess(req: Request, bookId: number): Promise<boolean> {
+  if (req.user!.role === 'admin') return true;
+  const db = getDb();
+  const book = await db('books').where('id', bookId).first();
+  if (!book) return false;
+  const perm = await db('library_permissions')
+    .where({ user_id: req.user!.userId, library_id: book.library_id })
+    .first();
+  return !!perm;
+}
+
+async function checkBooksAccess(req: Request, bookIds: number[]): Promise<number[]> {
+  if (req.user!.role === 'admin') return [];
+  const db = getDb();
+  const accessible = await db('books')
+    .whereIn('id', bookIds)
+    .join('library_permissions', function () {
+      this.on('books.library_id', 'library_permissions.library_id')
+        .andOn('library_permissions.user_id', db.raw('?', [req.user!.userId]));
+    })
+    .pluck('books.id');
+  const accessibleSet = new Set(accessible);
+  return bookIds.filter(id => !accessibleSet.has(id));
+}
+
 router.get('/', async (req: Request, res: Response) => {
   const db = getDb();
   const tags = await db('user_tags')
@@ -103,6 +128,11 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 router.post('/book/:bookId', async (req: Request, res: Response) => {
   try {
+    const bookId = Number(req.params.bookId);
+    if (!(await checkBookAccess(req, bookId))) {
+      res.status(403).json({ error: 'No access to this book' });
+      return;
+    }
     const { tag_id } = z.object({ tag_id: z.number().int().positive() }).parse(req.body);
     const db = getDb();
     const now = new Date().toISOString();
@@ -118,7 +148,7 @@ router.post('/book/:bookId', async (req: Request, res: Response) => {
     await db('book_tags')
       .insert({
         user_id: req.user!.userId,
-        book_id: Number(req.params.bookId),
+        book_id: bookId,
         tag_id,
         created_at: now,
       })
@@ -161,6 +191,12 @@ router.put('/batch', async (req: Request, res: Response) => {
     const { book_ids, add_tag_ids, remove_tag_ids } = batchTagSchema.parse(req.body);
     const db = getDb();
     const now = new Date().toISOString();
+
+    const denied = await checkBooksAccess(req, book_ids);
+    if (denied.length > 0) {
+      res.status(403).json({ error: 'No access to some books', denied_book_ids: denied });
+      return;
+    }
 
     await db.transaction(async (trx) => {
       if (add_tag_ids && add_tag_ids.length > 0) {
